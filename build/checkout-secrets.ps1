@@ -36,7 +36,7 @@ while($true) {
   # wait until we're next in the queue
   $nextMessage = $queue.CloudQueue.PeekMessage()
   $nextMessageId = $nextMessage.Id
-  Write-Host "Next message:
+  Write-Host "Next message:"
   Write-Host "$nextMessage"
   
   if ($nextMessageId -eq $messageId) {
