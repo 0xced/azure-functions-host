@@ -23,7 +23,7 @@ $storageContext = New-AzStorageContext -ConnectionString $connectionString
 
 # to maintain ordering across builds, only try to retrieve a lock when it's our turn
 $queue = Get-AzStorageQueue –Name 'build-order' –Context $storageContext
-$queueMessage = New-Object -TypeName "Microsoft.Azure.Storage.Queue.CloudQueueMessage,$($queue.CloudQueue.GetType().Assembly.FullName)" -ArgumentList "3.0.$env:buildNumber $env:SYSTEM_JOBNAME"
+$queueMessage = New-Object -TypeName "Microsoft.Azure.Storage.Queue.CloudQueueMessage,$($queue.CloudQueue.GetType().Assembly.FullName)" -ArgumentList "3.0.$env:buildNumber $env:SYSTEM_JOBDISPLAYNAME"
 $queue.CloudQueue.AddMessage($queueMessage)
 $messageId = $queueMessage.Id
 Write-Host "Adding a queue message. This step will continue when this message is next on the queue."
@@ -37,7 +37,8 @@ while($true) {
   $nextMessage = $queue.CloudQueue.PeekMessage()
   $nextMessageId = $nextMessage.Id
   Write-Host "Next message:"
-  Write-Host "$nextMessage"
+  Write-Host "  Id:      $nextMessageId"
+  Write-Host "  Message: $($nextMessage.AsString)"
   
   if ($nextMessageId -eq $messageId) {
     Write-Host "This job is next in the queue. Proceeding to poll for blob lease."
