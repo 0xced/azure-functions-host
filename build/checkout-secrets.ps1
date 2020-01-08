@@ -49,7 +49,7 @@ while($true) {
   Write-Host ""
 }
 
-While($true) {
+While($true) {I
   $blobs = Get-AzStorageBlob -Context $storageContext -Container "ci-locks"
   $token = $null
   
