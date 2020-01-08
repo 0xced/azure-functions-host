@@ -2,8 +2,6 @@ param (
   [string]$connectionString = ""
 )
 
-# Install-Module -Name Az.Storage -RequiredVersion 1.11.0 -Scope CurrentUser -Force
-
 function AcquireLease($blob) {
   try {
     return $blob.ICloudBlob.AcquireLease($null, $null, $null, $null, $null)
@@ -13,13 +11,19 @@ function AcquireLease($blob) {
   } 
 }
 
+$azVersion = "1.11.0"
+Import-Module Az.Storage
+$azModule = Get-Module -Name Az.Storage
+if ($azModule.Version -ne $azVersion) {
+  throw "Az.Storage module version $azVersion was not found. Current version: $($azModule.Version)"
+}
+
 # get a blob lease to prevent test overlap
 $storageContext = New-AzStorageContext -ConnectionString $connectionString
 
 # to maintain ordering across builds, only try to retrieve a lock when it's our turn
 $queue = Get-AzStorageQueue –Name 'build-order' –Context $storageContext
 $queueMessage = New-Object -TypeName "Microsoft.Azure.Storage.Queue.CloudQueueMessage,$($queue.CloudQueue.GetType().Assembly.FullName)" -ArgumentList ""
-Write-Host "$($queue.CloudQueue.GetType().Assembly.FullName)"
 $queue.CloudQueue.AddMessage($queueMessage)
 $messageId = $queueMessage.Id
 Write-Host "Adding a queue message. This step will continue when this message is next on the queue."
