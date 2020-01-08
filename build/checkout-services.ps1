@@ -2,7 +2,7 @@ param (
   [string]$connectionString = ""
 )
 
-Install-Module -Name Az.Storage -RequiredVersion 1.11.0 -Scope CurrentUser -Force
+# Install-Module -Name Az.Storage -RequiredVersion 1.11.0 -Scope CurrentUser -Force
 
 function AcquireLease($blob) {
   try {
