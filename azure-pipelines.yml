@@ -242,8 +242,12 @@ jobs:
       projects: |
         **\WebJobs.Script.Tests.Integration.csproj
     env:
-      # KeyVault does not allow underscores, so we need to explicitly map this.
+      AzureWebJobsStorage: $(Storage)
       ConnectionStrings__CosmosDB: $(CosmosDB)
+      AzureWebJobsEventHubSender: $(EventHub)
+      AzureWebJobsEventHubReceiver: $(EventHub)
+      AzureWebJobsSecretStorageKeyVaultConnectionString: $(KeyVaultConnectionString)
+      AzureWebJobsSecretStorageKeyVaultName: $(KeyVaultName)
   - task: PowerShell@2
     condition: always()
     displayName: 'Checkin secrets'
@@ -294,10 +298,15 @@ jobs:
     inputs:
       targetType: 'inline'
       script: |
+        Write-Host "##vso[task.setvariable variable=AzureWebJobsStorage]$env:AzureWebJobsStorageSecretMap"
         Write-Host "##vso[task.setvariable variable=ConnectionStrings__CosmosDB]$env:CosmosDbSecretMap"
+        Write-Host "##vso[task.setvariable variable=AzureWebJobsEventHubSender]$env:AzureWebJobsEventHubSenderSecretMap"
+        Write-Host "##vso[task.setvariable variable=AzureWebJobsEventHubReceiver]$env:AzureWebJobsEventHubReceiverSecretMap"
     env:
-      # KeyVault does not allow underscores, so we need to explicitly map this.
+      AzureWebJobsStorageSecretMap: $(Storage)
       CosmosDbSecretMap: $(CosmosDb)
+      AzureWebJobsEventHubSenderSecretMap: $(EventHub)
+      AzureWebJobsEventHubReceiverSecretMap: $(EventHub)
   - task: DotNetCoreCLI@2
     displayName: "C# end to end tests"
     condition: succeededOrFailed()

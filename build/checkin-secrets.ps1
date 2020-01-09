@@ -17,7 +17,7 @@ if ($leaseToken -eq "") {
 Write-Host "Breaking lease for $leaseBlob."
 
 $storageContext = New-AzStorageContext -ConnectionString $connectionString
-$blob = Get-AzureStorageBlob -Context $storageContext -Container "ci-locks" -Blob $leaseBlob
+$blob = Get-AzStorageBlob -Context $storageContext -Container "ci-locks" -Blob $leaseBlob
 
 $accessCondition = New-Object -TypeName Microsoft.Azure.Storage.AccessCondition
 $accessCondition.LeaseId = $leaseToken
