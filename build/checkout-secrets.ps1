@@ -11,6 +11,9 @@ function AcquireLease($blob) {
   } 
 }
 
+# use this for tracking metadata in lease blobs
+$buildName = "3.0." + $env:buildNumber + "_" + $env:SYSTEM_JOBDISPLAYNAME
+
 $azVersion = "1.11.0"
 Import-Module Az.Storage
 $azModule = Get-Module -Name Az.Storage
@@ -20,36 +23,6 @@ if ($azModule.Version -ne $azVersion) {
 
 # get a blob lease to prevent test overlap
 $storageContext = New-AzStorageContext -ConnectionString $connectionString
-
-# to maintain ordering across builds, only try to retrieve a lock when it's our turn
-$queue = Get-AzStorageQueue –Name 'build-order' –Context $storageContext
-$queueMessage = New-Object -TypeName "Microsoft.Azure.Storage.Queue.CloudQueueMessage,$($queue.CloudQueue.GetType().Assembly.FullName)" -ArgumentList "3.0.$env:buildNumber $env:SYSTEM_JOBDISPLAYNAME"
-$queue.CloudQueue.AddMessage($queueMessage)
-$messageId = $queueMessage.Id
-Write-Host "Adding a queue message. This step will continue when this message is next on the queue."
-Write-Host "Queue message id: '$messageId'"
-Write-Host ""
-
-$queuePollDelay = 10
-
-while($true) {
-  # wait until we're next in the queue
-  $nextMessage = $queue.CloudQueue.PeekMessage()
-  $nextMessageId = $nextMessage.Id
-  Write-Host "Next message:"
-  Write-Host "  Id:      $nextMessageId"
-  Write-Host "  Message: $($nextMessage.AsString)"
-  
-  if ($nextMessageId -eq $messageId) {
-    Write-Host "This job is next in the queue. Proceeding to poll for blob lease."
-    break
-  }
-
-  Write-Host "Waiting until this job is next in the queue. Will re-poll every $queuePollDelay seconds."
-  
-  Start-Sleep -s $queuePollDelay
-  Write-Host ""
-}
 
 While($true) {
   $blobs = Get-AzStorageBlob -Context $storageContext -Container "ci-locks"
@@ -75,6 +48,16 @@ While($true) {
       Write-Host "  Lease acquired on $name. LeaseId: '$token'"
       Write-Host "##vso[task.setvariable variable=LeaseBlob]$name"
       Write-Host "##vso[task.setvariable variable=LeaseToken]$token"
+      try {
+        $blob.ICloudBlob.FetchAttributes()
+        $blob.ICloudBlob.Metadata["Build"] = $buildName
+        $accessCondition = New-Object -TypeName Microsoft.Azure.Storage.AccessCondition
+        $accessCondition.LeaseId = $token
+        $blob.ICloudBlob.SetMetadata($accessCondition)
+      } catch {
+        # best effort
+        Write-Host "Warning: unable to update blob metadata. Continuing. $_"
+      }
       break
     } else {
       Write-Host "  Lease not acquired on $name."
@@ -90,9 +73,3 @@ While($true) {
   Start-Sleep -s $delay
   Write-Host ""
 }
-
-# now delete the message so that others may continue
-Write-Host ""
-Write-Host "Retrieving and deleting message '$messageId' from queue."
-$queueMessage = $queue.CloudQueue.GetMessage()
-$queue.CloudQueue.DeleteMessage($queueMessage)
