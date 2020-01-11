@@ -22,7 +22,7 @@ namespace Microsoft.Azure.WebJobs.Script.WebHost
 {
     public class SecretManager : IDisposable, ISecretManager
     {
-        private readonly ConcurrentDictionary<string, Dictionary<string, string>> _secretsMap = new ConcurrentDictionary<string, Dictionary<string, string>>();
+        private readonly ConcurrentDictionary<string, Dictionary<string, string>> _functionSecrets = new ConcurrentDictionary<string, Dictionary<string, string>>();
         private readonly IKeyValueConverterFactory _keyValueConverterFactory;
         private readonly ILogger _logger;
         private readonly ISecretsRepository _repository;
@@ -37,12 +37,12 @@ namespace Microsoft.Azure.WebJobs.Script.WebHost
         {
         }
 
-        public SecretManager(ISecretsRepository repository, ILogger logger, IMetricsLogger metricsLogger, HostNameProvider hostNameProvider, bool createHostSecretsIfMissing = false)
-            : this(repository, new DefaultKeyValueConverterFactory(repository.IsEncryptionSupported), logger, metricsLogger, hostNameProvider, createHostSecretsIfMissing)
+        public SecretManager(ISecretsRepository repository, ILogger logger, IMetricsLogger metricsLogger, HostNameProvider hostNameProvider, StartupContextProvider startupContextProvider, bool createHostSecretsIfMissing = false)
+            : this(repository, new DefaultKeyValueConverterFactory(repository.IsEncryptionSupported), logger, metricsLogger, hostNameProvider, startupContextProvider, createHostSecretsIfMissing)
         {
         }
 
-        public SecretManager(ISecretsRepository repository, IKeyValueConverterFactory keyValueConverterFactory, ILogger logger, IMetricsLogger metricsLogger, HostNameProvider hostNameProvider, bool createHostSecretsIfMissing = false)
+        public SecretManager(ISecretsRepository repository, IKeyValueConverterFactory keyValueConverterFactory, ILogger logger, IMetricsLogger metricsLogger, HostNameProvider hostNameProvider, StartupContextProvider startupContextProvider, bool createHostSecretsIfMissing = false)
         {
             _repository = repository;
             _keyValueConverterFactory = keyValueConverterFactory;
@@ -57,6 +57,13 @@ namespace Microsoft.Azure.WebJobs.Script.WebHost
                 // GetHostSecrets will create host secrets if not present
                 GetHostSecretsAsync().GetAwaiter().GetResult();
             }
+
+            var cachedFunctionSecrets = startupContextProvider.GetFunctionSecretsOrNull();
+            if (cachedFunctionSecrets != null)
+            {
+                _functionSecrets = new ConcurrentDictionary<string, Dictionary<string, string>>(cachedFunctionSecrets);
+            }
+            _hostSecrets = startupContextProvider.GetHostSecretsOrNull();
         }
 
         public void Dispose()
@@ -146,7 +153,7 @@ namespace Microsoft.Azure.WebJobs.Script.WebHost
 
                 functionName = functionName.ToLowerInvariant();
                 Dictionary<string, string> functionSecrets;
-                _secretsMap.TryGetValue(functionName, out functionSecrets);
+                _functionSecrets.TryGetValue(functionName, out functionSecrets);
 
                 if (functionSecrets == null)
                 {
@@ -183,7 +190,7 @@ namespace Microsoft.Azure.WebJobs.Script.WebHost
 
                     Dictionary<string, string> result = secrets.Keys.ToDictionary(s => s.Name, s => s.Value);
 
-                    functionSecrets = _secretsMap.AddOrUpdate(functionName, result, (n, r) => result);
+                    functionSecrets = _functionSecrets.AddOrUpdate(functionName, result, (n, r) => result);
                 }
 
                 if (merged)
@@ -530,11 +537,11 @@ namespace Microsoft.Azure.WebJobs.Script.WebHost
             {
                 if (string.IsNullOrEmpty(e.Name))
                 {
-                    _secretsMap.Clear();
+                    _functionSecrets.Clear();
                 }
                 else
                 {
-                    _secretsMap.TryRemove(e.Name, out _);
+                    _functionSecrets.TryRemove(e.Name, out _);
                 }
             }
         }
